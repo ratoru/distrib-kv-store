@@ -54,7 +54,7 @@ pub enum Request {
 }
 
 /**
- * Here you will defined what type of answer you expect from reading the data of a node.
+ * Here you will define what type of answer you expect from reading the data of a node.
  * In this example it will return a optional value from a given key in
  * the `ExampleRequest.Set`.
  *
@@ -550,4 +550,30 @@ pub(crate) async fn new_storage<P: AsRef<Path>>(db_path: P) -> (LogStore, StateM
     let sm_store = StateMachineStore::new(db).await.unwrap();
 
     (log_store, sm_store)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use openraft::testing::StoreBuilder;
+    use tempfile::TempDir;
+
+    /// Struct to test the memory store.
+    struct RocksBuilder {}
+
+    impl StoreBuilder<TypeConfig, LogStore, StateMachineStore, TempDir> for RocksBuilder {
+        async fn build(
+            &self,
+        ) -> Result<(TempDir, LogStore, StateMachineStore), StorageError<NodeId>> {
+            let td = TempDir::new().expect("couldn't create temp dir");
+            let (log_store, sm) = new_storage(td.path()).await;
+            Ok((td, log_store, sm))
+        }
+    }
+
+    #[test]
+    pub fn test_mem_store() -> Result<(), StorageError<NodeId>> {
+        openraft::testing::Suite::test_all(RocksBuilder {})?;
+        Ok(())
+    }
 }
