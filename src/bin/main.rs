@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
 
     start_example_raft_node(
         options.id,
-        format!("{}.db", options.rpc_addr),
+        format!("{}-db", options.rpc_addr),
         options.http_addr,
         options.rpc_addr,
     )

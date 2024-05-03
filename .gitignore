@@ -1,5 +1,5 @@
 /target
 vendor
 .idea
-*.db
+*-db
 /*.log

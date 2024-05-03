@@ -1,27 +1,30 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
+use axum::extract::Json;
+use axum::extract::State;
+use axum::routing::get;
+use axum::routing::post;
+use axum::Router;
 use openraft::error::Infallible;
+use openraft::raft::ClientWriteResponse;
 use openraft::RaftMetrics;
-use tide::Body;
-use tide::Request;
-use tide::Response;
-use tide::StatusCode;
 
-use crate::app::App;
+use crate::network::error::AppError;
+use crate::AppState;
 use crate::Node;
 use crate::NodeId;
-use crate::Server;
+use crate::TypeConfig;
 
 // --- Cluster management
 
-pub fn rest(app: &mut Server) {
-    let mut cluster = app.at("/cluster");
-    cluster.at("/add-learner").post(add_learner);
-    cluster.at("/change-membership").post(change_membership);
-    cluster.at("/init").post(init);
-    cluster.at("/metrics").get(metrics);
+/// Creates a new `axum::Router` instance with the configured routes for Cluster Management API.
+pub fn rest() -> Router<AppState> {
+    Router::new()
+        .route("/add-learner", post(add_learner))
+        .route("/change-membership", post(change_membership))
+        .route("/init", post(init))
+        .route("/metrics", get(metrics))
 }
 
 /// Add a node as **Learner**.
@@ -29,45 +32,42 @@ pub fn rest(app: &mut Server) {
 /// A Learner receives log replication from the leader but does not vote.
 /// This should be done before adding a node as a member into the cluster
 /// (by calling `change-membership`)
-async fn add_learner(mut req: Request<Arc<App>>) -> tide::Result {
-    let (node_id, api_addr, rpc_addr): (NodeId, String, String) = req.body_json().await?;
+async fn add_learner(
+    State(state): State<AppState>,
+    Json(payload): Json<(NodeId, String, String)>,
+) -> Result<Json<ClientWriteResponse<TypeConfig>>, AppError> {
+    let (node_id, api_addr, rpc_addr) = payload;
     let node = Node { rpc_addr, api_addr };
-    let res = req.state().raft.add_learner(node_id, node, true).await;
-    Ok(Response::builder(StatusCode::Ok)
-        .body(Body::from_json(&res)?)
-        .build())
+    let res = state.raft.add_learner(node_id, node, true).await?;
+    Ok(Json(res))
 }
 
 /// Changes specified learners to members, or remove members.
-async fn change_membership(mut req: Request<Arc<App>>) -> tide::Result {
-    let body: BTreeSet<NodeId> = req.body_json().await?;
-    let res = req.state().raft.change_membership(body, false).await;
-    Ok(Response::builder(StatusCode::Ok)
-        .body(Body::from_json(&res)?)
-        .build())
+async fn change_membership(
+    State(state): State<AppState>,
+    Json(payload): Json<BTreeSet<NodeId>>,
+) -> Result<Json<ClientWriteResponse<TypeConfig>>, AppError> {
+    let res = state.raft.change_membership(payload, false).await?;
+    Ok(Json(res))
 }
 
 /// Initialize a single-node cluster.
-async fn init(req: Request<Arc<App>>) -> tide::Result {
+async fn init(State(state): State<AppState>) -> Result<Json<Result<(), Infallible>>, AppError> {
     let mut nodes = BTreeMap::new();
     let node = Node {
-        api_addr: req.state().api_addr.clone(),
-        rpc_addr: req.state().rpc_addr.clone(),
+        api_addr: state.api_addr.clone(),
+        rpc_addr: state.rpc_addr.clone(),
     };
 
-    nodes.insert(req.state().id, node);
-    let res = req.state().raft.initialize(nodes).await;
-    Ok(Response::builder(StatusCode::Ok)
-        .body(Body::from_json(&res)?)
-        .build())
+    nodes.insert(state.id, node);
+    let res = state.raft.initialize(nodes).await?;
+    Ok(Json(Ok(res)))
 }
 
 /// Get the latest metrics of the cluster
-async fn metrics(req: Request<Arc<App>>) -> tide::Result {
-    let metrics = req.state().raft.metrics().borrow().clone();
-
-    let res: Result<RaftMetrics<NodeId, Node>, Infallible> = Ok(metrics);
-    Ok(Response::builder(StatusCode::Ok)
-        .body(Body::from_json(&res)?)
-        .build())
+async fn metrics(
+    State(state): State<AppState>,
+) -> Result<Json<RaftMetrics<NodeId, Node>>, AppError> {
+    let metrics = state.raft.metrics().borrow().clone();
+    Ok(Json(metrics))
 }

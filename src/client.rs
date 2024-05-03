@@ -123,6 +123,7 @@ impl ExampleClient {
     /// Send RPC to specified node.
     ///
     /// It sends out a POST request if `req` is Some. Otherwise a GET request.
+    /// TODO: Does it really? Or can I read error codes?
     /// The remote endpoint must respond a reply in form of `Result<T, E>`.
     /// An `Err` happened on remote will be wrapped in an [`RPCError::RemoteError`].
     async fn do_send_rpc_to_leader<Req, Resp, Err>(

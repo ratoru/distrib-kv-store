@@ -72,7 +72,7 @@ pub mod typ {
 
 pub type ExampleRaft = openraft::Raft<TypeConfig>;
 
-type Server = tide::Server<Arc<App>>;
+type AppState = Arc<App>;
 
 pub async fn start_example_raft_node<P>(
     node_id: NodeId,
@@ -111,7 +111,7 @@ where
     .await
     .unwrap();
 
-    let app = Arc::new(App {
+    let app_state = Arc::new(App {
         id: node_id,
         api_addr: http_addr.clone(),
         rpc_addr: rpc_addr.clone(),
@@ -120,23 +120,25 @@ where
         config,
     });
 
-    let echo_service = Arc::new(network::raft::Raft::new(app.clone()));
+    let echo_service = Arc::new(network::raft::Raft::new(app_state.clone()));
 
     let server = toy_rpc::Server::builder().register(echo_service).build();
 
-    let listener = TcpListener::bind(rpc_addr).await.unwrap();
+    let rpc_listener = TcpListener::bind(rpc_addr).await.unwrap();
     let handle = task::spawn(async move {
-        server.accept_websocket(listener).await.unwrap();
+        server.accept_websocket(rpc_listener).await.unwrap();
     });
 
     // Create an application that will store all the instances created above, this will
-    // be later used on the actix-web services.
-    let mut app: Server = tide::Server::with_state(app);
+    // be later used on the axum handlers.
+    let app_listener = TcpListener::bind(http_addr).await.unwrap();
+    let app = axum::Router::new()
+        .nest("/api", api::rest())
+        .nest("/cluster", management::rest())
+        .with_state(app_state);
 
-    management::rest(&mut app);
-    api::rest(&mut app);
-
-    app.listen(http_addr).await?;
+    axum::serve(app_listener, app).await.unwrap();
+    // app.listen(http_addr).await?;
     _ = handle.await;
     Ok(())
 }

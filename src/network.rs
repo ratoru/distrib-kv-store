@@ -1,4 +1,5 @@
 pub mod api;
+mod error;
 pub mod management;
 pub mod raft;
 mod raft_network_impl;
