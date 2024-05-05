@@ -57,9 +57,6 @@ pub enum Request {
  * Here you will define what type of answer you expect from reading the data of a node.
  * In this example it will return a optional value from a given key in
  * the `ExampleRequest.Set`.
- *
- * TODO: Should we explain how to create multiple `AppDataResponse`?
- *
  */
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Response {

@@ -3,10 +3,10 @@ use std::collections::BTreeSet;
 
 use axum::extract::Json;
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::routing::get;
 use axum::routing::post;
 use axum::Router;
-use openraft::error::Infallible;
 use openraft::raft::ClientWriteResponse;
 use openraft::RaftMetrics;
 
@@ -35,24 +35,24 @@ pub fn rest() -> Router<AppState> {
 async fn add_learner(
     State(state): State<AppState>,
     Json(payload): Json<(NodeId, String, String)>,
-) -> Result<Json<ClientWriteResponse<TypeConfig>>, AppError> {
+) -> Result<(StatusCode, Json<ClientWriteResponse<TypeConfig>>), AppError> {
     let (node_id, api_addr, rpc_addr) = payload;
     let node = Node { rpc_addr, api_addr };
     let res = state.raft.add_learner(node_id, node, true).await?;
-    Ok(Json(res))
+    Ok((StatusCode::OK, Json(res)))
 }
 
 /// Changes specified learners to members, or remove members.
 async fn change_membership(
     State(state): State<AppState>,
     Json(payload): Json<BTreeSet<NodeId>>,
-) -> Result<Json<ClientWriteResponse<TypeConfig>>, AppError> {
+) -> Result<(StatusCode, Json<ClientWriteResponse<TypeConfig>>), AppError> {
     let res = state.raft.change_membership(payload, false).await?;
-    Ok(Json(res))
+    Ok((StatusCode::OK, Json(res)))
 }
 
 /// Initialize a single-node cluster.
-async fn init(State(state): State<AppState>) -> Result<Json<Result<(), Infallible>>, AppError> {
+async fn init(State(state): State<AppState>) -> Result<(StatusCode, Json<()>), AppError> {
     let mut nodes = BTreeMap::new();
     let node = Node {
         api_addr: state.api_addr.clone(),
@@ -61,13 +61,13 @@ async fn init(State(state): State<AppState>) -> Result<Json<Result<(), Infallibl
 
     nodes.insert(state.id, node);
     let res = state.raft.initialize(nodes).await?;
-    Ok(Json(Ok(res)))
+    Ok((StatusCode::OK, Json(res)))
 }
 
 /// Get the latest metrics of the cluster
 async fn metrics(
     State(state): State<AppState>,
-) -> Result<Json<RaftMetrics<NodeId, Node>>, AppError> {
+) -> Result<(StatusCode, Json<RaftMetrics<NodeId, Node>>), AppError> {
     let metrics = state.raft.metrics().borrow().clone();
-    Ok(Json(metrics))
+    Ok((StatusCode::OK, Json(metrics)))
 }

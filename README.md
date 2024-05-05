@@ -4,7 +4,23 @@ The goal of the project is to build a high-performance distributed key-value sto
 
 ## Overview
 
+To see the distributed kv store at work, run the following:
+
+```bash
+sh test-cluster.sh
+```
+
 ### Folder Structure
+
+- `bin/main.rs` can be used to start a Raft node. This is used by `test-cluster.sh` for testing purposes.
+- `lib.rs` contains the starting point and core implementation of creating a Raft node.
+- `network` contains all the files needed for a client to interact with the system and for the Raft nodes to talk to each other.
+    - `api.rs` contains the applications API that can be called by a client (see `client.rs` for more info.)
+    - `management.rs` contains the API used to set up the Raft network. This API is exposed via an Axum HTTP server.
+    - `error.rs` contains a custom error type used to make Axum handlers easier to work with.
+    - `raft.rs` and `raft_network_impl.rs` implement the communication of Raft nodes. This is done via RPCs.
+- `client.rs` implements a basic client that can be used to interact with the distributed kv store. This implementation is used by `tests/test_cluster.rs` to test whether the implementation works as expected.
+- `store.rs` implements the Log Store and State Machine used by Raft.
 
 ### Tech Stack
 

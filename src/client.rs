@@ -123,8 +123,8 @@ impl ExampleClient {
     /// Send RPC to specified node.
     ///
     /// It sends out a POST request if `req` is Some. Otherwise a GET request.
-    /// TODO: Does it really? Or can I read error codes?
-    /// The remote endpoint must respond a reply in form of `Result<T, E>`.
+    /// The remote endpoint must respond with a status code indicating whether the request
+    /// succeeded or not. Based on the status code, the reply will be parsed into `Result<T, E>`.
     /// An `Err` happened on remote will be wrapped in an [`RPCError::RemoteError`].
     async fn do_send_rpc_to_leader<Req, Resp, Err>(
         &self,
@@ -163,17 +163,30 @@ impl ExampleClient {
             RPCError::Network(NetworkError::new(&e))
         })?;
 
-        let res: Result<Resp, Err> = resp
-            .json()
-            .await
-            .map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
+        let status = resp.status();
+        let res: Result<Resp, RPCError<NodeId, Node, Err>> = if status.is_success() {
+            let parsed: Resp = resp
+                .json()
+                .await
+                .map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
+            Ok(parsed)
+        } else {
+            let remote_err: Err = resp
+                .json()
+                .await
+                .map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
+            Err(RPCError::RemoteError(RemoteError::new(
+                leader_id, remote_err,
+            )))
+        };
+
         println!(
             "<<< client recv reply from {}: {}",
             url,
             serde_json::to_string_pretty(&res).unwrap()
         );
 
-        res.map_err(|e| RPCError::RemoteError(RemoteError::new(leader_id, e)))
+        res
     }
 
     /// Try the best to send a request to the leader.

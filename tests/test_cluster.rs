@@ -225,7 +225,7 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- A write to non-leader will be automatically forwarded to a known leader
 
-    println!("=== read `foo` on node 2");
+    println!("=== write `foo` on node 2 (not leader, should be forwarded)");
     let _x = client2
         .write(&Request::Set {
             key: "foo".to_string(),
