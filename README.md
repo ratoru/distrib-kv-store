@@ -27,9 +27,9 @@ sh test-cluster.sh
 This project is using Protobufs (gRPCs) for the communication. You will have to run `brew install protobuf` before being able to compile this repo.
 
 - [Openraft](https://github.com/datafuselabs/openraft) as the underlying Raft protocol.
-- [Tonic](https://github.com/hyperium/tonic), a gRPC over HTTP/2 implementation for communication.
+- [Tonic](https://github.com/hyperium/tonic), a gRPC over HTTP/2 implementation for communication. Need to have `protobuf` installed.
 - [Rocksdb](https://crates.io/crates/rocksdb), a library that provides an embeddable, persistent key-value store for fast storage.
 - [Axum](https://github.com/tokio-rs/axum) as the web framework.
 - [Tracing](https://docs.rs/tracing/latest/tracing/) for asynchronous logging.
-- [Criterion.rs](https://github.com/bheisler/criterion.rs) for benchmark tests.
+- [Criterion.rs](https://github.com/bheisler/criterion.rs) for benchmark tests. Need to have `gnuplot` installed.
 

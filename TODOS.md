@@ -16,4 +16,5 @@
 ## 3. Benchmarking
 
 - [ ] Use [Criterion](https://github.com/tikv/raft-rs?tab=readme-ov-file#benchmarks) for benchmarking.
+- [ ] Could also use [hyperfine](https://github.com/sharkdp/hyperfine) instead. This would benchmark shell commands instead of Rust code.
 
