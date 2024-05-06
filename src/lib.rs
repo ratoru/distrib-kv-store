@@ -1,4 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
 #![deny(unused_qualifications)]
 
 use std::fmt::Display;
@@ -8,7 +7,7 @@ use std::sync::Arc;
 
 use openraft::Config;
 use tokio::net::TcpListener;
-use tokio::task;
+use tonic::transport::Server;
 
 use crate::app::App;
 use crate::network::api;
@@ -17,6 +16,12 @@ use crate::network::Network;
 use crate::store::new_storage;
 use crate::store::Request;
 use crate::store::Response;
+// use raft_grpc::raft_grpc_server::RaftGrpc;
+use raft_grpc::raft_grpc_server::RaftGrpcServer;
+
+pub mod raft_grpc {
+    tonic::include_proto!("raft_grpc"); // The string specified here must match the proto package name
+}
 
 pub mod app;
 pub mod client;
@@ -120,14 +125,8 @@ where
         config,
     });
 
-    let echo_service = Arc::new(network::raft::Raft::new(app_state.clone()));
-
-    let server = toy_rpc::Server::builder().register(echo_service).build();
-
-    let rpc_listener = TcpListener::bind(rpc_addr).await.unwrap();
-    let handle = task::spawn(async move {
-        server.accept_websocket(rpc_listener).await.unwrap();
-    });
+    // Create the Raft service.
+    let raft_service = network::raft::Raft::new(app_state.clone());
 
     // Create an application that will store all the instances created above, this will
     // be later used on the axum handlers.
@@ -137,8 +136,13 @@ where
         .nest("/cluster", management::rest())
         .with_state(app_state);
 
+    // Serve the application.
     axum::serve(app_listener, app).await.unwrap();
-    // app.listen(http_addr).await?;
-    _ = handle.await;
+    // Serve the Rafy gRPC server.
+    Server::builder()
+        .add_service(RaftGrpcServer::new(raft_service))
+        .serve(rpc_addr.parse().unwrap())
+        .await
+        .unwrap();
     Ok(())
 }

@@ -1,0 +1,47 @@
+syntax = "proto3";
+package raft_grpc;
+
+service RaftGrpc {
+  rpc Vote(RaftRequest) returns (RaftReply);
+  rpc Append(RaftRequest) returns (RaftReply);
+  rpc Snapshot(RaftRequest) returns (RaftReply);
+}
+
+// message VoteRequest {
+//   uint64 leader_id_term = 1;
+//   uint64 leader_id_node_id = 2;
+//   bool committed = 3;
+//   optional uint64 last_log_id_leader_id_term = 4;
+//   optional uint64 last_log_id_leader_id_node_id = 5;
+//   optional uint64 last_log_id_index = 6;
+// }
+//
+// message VoteResponse {
+//   uint64 leader_id_term = 1;
+//   uint64 leader_id_node_id = 2;
+//   bool committed = 3;
+//   bool vote_granted = 4;
+//   optional uint64 last_log_id_leader_id_term = 5;
+//   optional uint64 last_log_id_leader_id_node_id = 6;
+//   optional uint64 last_log_id_index = 7;
+// }
+//
+// message AppendEntriesRequest {
+//   uint64 vote_leader_id_term = 1;
+//   uint64 vote_leader_id_node_id = 2;
+//   bool vote_committed = 3;
+//   uint64 prev_log_id_leader_id_term = 4;
+//   uint64 prev_log_id_leader_id_node_id = 5;
+//   uint64 prev_log_id_index = 6;
+//   bytes entries = 7;
+//   uint64 leader_commit_leader_id_term = 8;
+//   uint64 leader_commit_leader_id_node_id = 9;
+//   uint64 leader_commit_index = 10;
+// }
+
+message RaftRequest { bytes data = 1; }
+
+message RaftReply {
+  bytes data = 1;
+  bytes error = 2;
+}
