@@ -10,6 +10,8 @@ To see the distributed kv store at work, run the following:
 sh test-cluster.sh
 ```
 
+You can also run `cargo test` to make sure everything works properly.
+
 ### Folder Structure
 
 - `bin/main.rs` can be used to start a Raft node. This is used by `test-cluster.sh` for testing purposes.
@@ -18,7 +20,7 @@ sh test-cluster.sh
     - `api.rs` contains the applications API that can be called by a client (see `client.rs` for more info.)
     - `management.rs` contains the API used to set up the Raft network. This API is exposed via an Axum HTTP server.
     - `error.rs` contains a custom error type used to make Axum handlers easier to work with.
-    - `raft.rs` and `raft_network_impl.rs` implement the communication of Raft nodes. This is done via RPCs.
+    - `raft.rs` and `raft_network_impl.rs` implement the communication of Raft nodes. This is done via RPCs. `raft.rs` implements the gRPC server. `raft_network_impl.rs` implements the actual communication between nodes.
 - `client.rs` implements a basic client that can be used to interact with the distributed kv store. This implementation is used by `tests/test_cluster.rs` to test whether the implementation works as expected.
 - `store.rs` implements the Log Store and State Machine used by Raft.
 
