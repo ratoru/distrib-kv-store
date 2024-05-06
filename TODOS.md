@@ -13,7 +13,7 @@
 
 We have to decide how exactly to do this:
 
-- Hash vs range based?
+- Hash vs range based? Virtual nodes?
 - How do we want to split the nodes? For more info see [TikV explanation](https://www.pingcap.com/blog/building-a-large-scale-distributed-storage-system-based-on-raft/).
     - Option 1: A Node is actually a Raft cluster of $k$ machines. If we have $n$ nodes, we have $n$ Raft clusters and $n*k$ machines in total. Somehow need to communicate between Raft clusters when nodes are added or removed.
     - Option 2: Do what TikV does. Assume we have $n$ nodes and replication factor $k$. Then node's $i$ data is also replicated on the nodes ${i, \dots, i+k}$. Example for $n=4, k=3$:
@@ -26,6 +26,9 @@ We have to decide how exactly to do this:
     | Data D | Data D | -      | Data D |
 
     Seems complicated because now, a node is part of $k$ Raft groups. Additionally, we still need to communicate somehow when a node gets added or removed.
+- How do we manage nodes in the ring?
+    - Option 1: A master sharder.
+    - Option 2: Use a distributed hash table (DHT) like Chord to map keys to nodes.
 
 ## 3. Benchmarking
 
