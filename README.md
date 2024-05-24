@@ -2,6 +2,8 @@
 
 The goal of the project is to build a high-performance distributed key-value store with consistent hashing, sharding, and fault tolerance. We plan to implement the KVS in Rust. For consensus between nodes, we will build on an out of the box implementation of Raft in Rust and adapt it to use RPCs as the communication mechanism. We will then build our own implementation of consistent hashing using Cache Array Routing Protocol (CARP) and demonstrate (with benchmarks) that our system efficiently and evenly partitions the data across all nodes.
 
+Sharding is done by using CARP to create a consistent hash ring. Each node on the ring is a Raft cluster, which provides data replication. Routing to the correct cluster is done client-side. The client needs to request the CARP config before using it to send requests to the right place.
+
 ## Overview
 
 To see the a single Raft cluster at work, run the following:
@@ -27,7 +29,7 @@ You can also run `cargo test` to make sure everything works properly. This will 
 
 ### Tech Stack
 
-- [Openraft](https://github.com/datafuselabs/openraft) as the underlying Raft protocol.
+- [Openraft](https://github.com/datafuselabs/openraft) as the underlying Raft consensus protocol.
 - Custom CARP implementation. See `carp.rs` for more info.
 - [Toy-RPC](https://github.com/minghuaw/toy-rpc), an RPC implementation that mimics golang's `net/rpc`.
 - [Rocksdb](https://crates.io/crates/rocksdb), a library that provides an embeddable, persistent key-value store for fast storage.
