@@ -2,7 +2,7 @@
 
 The goal of the project is to build a high-performance distributed key-value store with consistent hashing, sharding, and fault tolerance. We plan to implement the KVS in Rust. For consensus between nodes, we will build on an out of the box implementation of Raft in Rust and adapt it to use RPCs as the communication mechanism. We will then build our own implementation of consistent hashing using Cache Array Routing Protocol (CARP) and demonstrate (with benchmarks) that our system efficiently and evenly partitions the data across all nodes.
 
-Sharding is done by using CARP to create a consistent hash ring. Each node on the ring is a Raft cluster, which provides data replication. Routing to the correct cluster is done client-side. The client needs to request the CARP config before using it to send requests to the right place.
+We use CARP to create a consistent hash ring for data sharding. Each node on the ring is a Raft cluster, which provides data replication. Routing to the correct cluster is done client-side. The client needs to request the CARP config before using it to send requests to the right place.
 
 ## Overview
 
