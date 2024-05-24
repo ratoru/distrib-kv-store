@@ -210,6 +210,7 @@ fn rebalance(nodes: &mut Vec<RingNode>) {
     }
 }
 
+// Used to deserialize nodes from JSON.
 fn deserialize_nodes<'de, D>(deserializer: D) -> Result<Vec<RingNode>, D::Error>
 where
     D: Deserializer<'de>,
@@ -325,6 +326,8 @@ mod tests {
         assert!(counts.contains_key("0"));
         assert!(counts.contains_key("1"));
         assert!(counts["0"] > 3500);
+        assert!(counts["1"] > 3500);
+        assert!(counts["0"] + counts["1"] == 10000);
     }
 
     #[test]
