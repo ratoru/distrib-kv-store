@@ -32,6 +32,7 @@ impl Node {
 }
 
 /// A CARP hash ring.
+#[derive(Debug, Clone)]
 pub struct Carp {
     nodes: Vec<Node>,
 }
@@ -57,11 +58,10 @@ impl Carp {
         let mut running_prod = last_load;
         let mut last_relative = self.nodes[0].relative_load;
         for (i, node) in self.nodes.iter_mut().skip(1).enumerate() {
-            // TODO: Figure out if it needs wrapping.
-            let mut x_k =
-                ((num_nodes - (i as f32)) * (node.relative_load - last_relative)) / running_prod;
-            x_k += last_load.powf(num_nodes - (i as f32));
-            x_k = x_k.powf(1.0 / (num_nodes - (i as f32)));
+            let mut x_k = ((num_nodes - ((i + 1) as f32)) * (node.relative_load - last_relative))
+                / running_prod;
+            x_k += last_load.powf(num_nodes - ((i + 1) as f32));
+            x_k = x_k.powf(1.0 / (num_nodes - ((i + 1) as f32)));
             node.load_factor = x_k;
 
             running_prod *= x_k;
@@ -102,7 +102,7 @@ impl Carp {
     /// # Examples
     ///
     /// ```
-    /// use carp::Carp;
+    /// use distrib_kv_store::carp::Carp;
     ///
     /// let mut ring = Carp::new(vec![]);
     ///
@@ -117,9 +117,9 @@ impl Carp {
     /// # Examples
     ///
     /// ```
-    /// use carp::Carp;
+    /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string, 0.5), ("node-2".to_string(), 0.5)]);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)]);
     ///
     /// assert_eq!(ring.len(), 2);
     /// ```
@@ -136,11 +136,11 @@ impl Carp {
     /// # Examples
     ///
     /// ```
-    /// use carp::Carp;
+    /// use distrib_kv_store::carp::Carp;
     ///
     /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)]);
     ///
-    /// assert_eq!(ring.get("0"), "node1");
+    /// assert_eq!(ring.get("foo"), "node-1");
     /// ```
     pub fn get(&self, url: &str) -> &str {
         if self.is_empty() {
@@ -226,8 +226,38 @@ mod tests {
         assert_eq!(ring.nodes[0].addr, "2");
         assert_eq!(ring.nodes[1].addr, "0");
         assert_eq!(ring.nodes[2].addr, "1");
-        assert_approx_eq!(ring.nodes[0].load_factor, 0.774_596);
-        assert_approx_eq!(ring.nodes[1].load_factor, 1.000_000);
-        assert_approx_eq!(ring.nodes[2].load_factor, 1.000_000);
+        assert_approx_eq!(ring.nodes[0].relative_load, 0.2);
+        assert_approx_eq!(ring.nodes[1].relative_load, 0.4);
+        assert_approx_eq!(ring.nodes[2].relative_load, 0.4);
+        assert_approx_eq!(ring.nodes[0].load_factor, 0.843_433);
+        assert_approx_eq!(ring.nodes[1].load_factor, 1.088_866);
+        assert_approx_eq!(ring.nodes[2].load_factor, 1.088_866);
+    }
+
+    #[test]
+    fn test_add_node() {
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)]);
+        ring.add_node("2".to_string(), 0.25);
+        assert_eq!(ring.len(), 3);
+        // Check that rebalance works correctly.
+        assert_eq!(ring.nodes[0].addr, "2");
+        assert_eq!(ring.nodes[1].addr, "0");
+        assert_eq!(ring.nodes[2].addr, "1");
+        assert_approx_eq!(ring.nodes[0].relative_load, 0.2);
+        assert_approx_eq!(ring.nodes[1].relative_load, 0.4);
+        assert_approx_eq!(ring.nodes[2].relative_load, 0.4);
+        assert_approx_eq!(ring.nodes[0].load_factor, 0.843_433);
+        assert_approx_eq!(ring.nodes[1].load_factor, 1.088_866);
+        assert_approx_eq!(ring.nodes[2].load_factor, 1.088_866);
+    }
+
+    #[test]
+    fn test_remove_node() {
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)]);
+        ring.remove_node("0");
+        assert_eq!(ring.len(), 1);
+        assert_eq!(ring.nodes[0].addr, "1");
+        assert_approx_eq!(ring.nodes[0].relative_load, 1.0);
+        assert_approx_eq!(ring.nodes[0].load_factor, 1.0);
     }
 }
