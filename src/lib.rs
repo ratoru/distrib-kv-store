@@ -19,6 +19,7 @@ use crate::store::Request;
 use crate::store::Response;
 
 pub mod app;
+pub mod carp;
 pub mod client;
 pub mod network;
 pub mod store;
@@ -138,7 +139,6 @@ where
         .with_state(app_state);
 
     axum::serve(app_listener, app).await.unwrap();
-    // app.listen(http_addr).await?;
     _ = handle.await;
     Ok(())
 }

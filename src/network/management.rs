@@ -60,8 +60,8 @@ async fn init(State(state): State<AppState>) -> Result<(StatusCode, Json<()>), A
     };
 
     nodes.insert(state.id, node);
-    let res = state.raft.initialize(nodes).await?;
-    Ok((StatusCode::OK, Json(res)))
+    state.raft.initialize(nodes).await?;
+    Ok((StatusCode::OK, Json(())))
 }
 
 /// Get the latest metrics of the cluster
