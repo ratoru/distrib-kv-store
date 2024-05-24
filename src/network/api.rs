@@ -7,6 +7,7 @@ use openraft::error::CheckIsLeaderError;
 use openraft::error::Infallible;
 use openraft::raft::ClientWriteResponse;
 
+use crate::carp::Carp;
 use crate::network::error::AppError;
 use crate::store;
 use crate::AppState;
@@ -26,16 +27,16 @@ pub fn rest() -> Router<AppState> {
         .route("/write", post(write))
         .route("/read", post(read))
         .route("/consistent_read", post(consistent_read))
+        .route("/get_hash_ring", post(get_hash_ring))
 }
 
 /**
  * Application API
  *
- * This is where you place your application, you can use the example below to create your
- * API. The current implementation:
- *
  *  - `POST - /write` saves a value in a key and sync the nodes.
  *  - `POST - /read` attempt to find a value from a given key.
+ *  - `POST - /consistent_read` attempt to find a value from a given key ensuring that the value is linearizable.
+ *  - `POST - /get_hash_ring` to get the routing table for all nodes.
  */
 async fn write(
     State(state): State<AppState>,
@@ -71,4 +72,12 @@ async fn consistent_read(
         Ok(value.cloned().unwrap_or_default());
 
     Ok((StatusCode::OK, Json(res?)))
+}
+
+async fn get_hash_ring(
+    State(state): State<AppState>,
+) -> Result<(StatusCode, Json<Carp>), AppError> {
+    let ring_lock = state.hash_ring.read().await;
+    let hash_ring: Carp = ring_lock.clone();
+    Ok((StatusCode::OK, Json(hash_ring)))
 }

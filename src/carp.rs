@@ -11,7 +11,7 @@ const CARP_PRIME: u32 = 0x62531965;
 /// A node in the hash ring.
 /// TODO: Currently ignores the fact that a node is a Raft cluster.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Node {
+pub struct RingNode {
     pub addr: String,
     /// A value between 0 and 1.
     pub relative_load: f32,
@@ -23,7 +23,7 @@ pub struct Node {
     pub hash: u32,
 }
 
-impl Node {
+impl RingNode {
     /// Creates a new node.
     pub fn new(addr: String, relative_load: f32) -> Self {
         let hash = membership_hash(&addr);
@@ -46,20 +46,20 @@ pub struct Carp {
     /// List time-to-live. Used to determine how long a list of members is valid.
     pub list_ttl: u32,
     #[serde(deserialize_with = "deserialize_nodes")]
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<RingNode>,
 }
 
 impl Carp {
     /// Creates a new hash ring from a vector of addresses and relative loads.
-    pub fn new(nodes: Vec<(String, f32)>) -> Self {
+    pub fn new(nodes: Vec<(String, f32)>, config_id: u32) -> Self {
         let nodes = nodes
             .into_iter()
-            .map(|(addr, relative_load)| Node::new(addr, relative_load))
+            .map(|(addr, relative_load)| RingNode::new(addr, relative_load))
             .collect();
         let mut ring = Self {
             nodes,
             version: 1.0,
-            config_id: 0,
+            config_id,
             list_ttl: 10 * 60, // 10 minutes
         };
         rebalance(&mut ring.nodes);
@@ -69,7 +69,7 @@ impl Carp {
     /// Adds a new node to the hash ring.
     /// Recalculates relative loads and load factors.
     pub fn add_node(&mut self, addr: String, relative_load: f32) {
-        let node = Node::new(addr, relative_load);
+        let node = RingNode::new(addr, relative_load);
         self.nodes.push(node);
         rebalance(&mut self.nodes);
         self.config_id += 1;
@@ -92,7 +92,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![]);
+    /// let mut ring = Carp::new(vec![], 0);
     ///
     /// assert!(ring.is_empty());
     /// ```
@@ -107,7 +107,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)]);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0);
     ///
     /// assert_eq!(ring.len(), 2);
     /// ```
@@ -126,7 +126,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)]);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0);
     ///
     /// assert_eq!(ring.get("foo"), "node-1");
     /// ```
@@ -182,7 +182,7 @@ fn combine_hashes(membership: u32, url: u32) -> u32 {
 }
 
 /// Rebalances the ring by recalculating the load factors and relative loads.
-fn rebalance(nodes: &mut Vec<Node>) {
+fn rebalance(nodes: &mut Vec<RingNode>) {
     if nodes.is_empty() {
         return;
     }
@@ -210,11 +210,11 @@ fn rebalance(nodes: &mut Vec<Node>) {
     }
 }
 
-fn deserialize_nodes<'de, D>(deserializer: D) -> Result<Vec<Node>, D::Error>
+fn deserialize_nodes<'de, D>(deserializer: D) -> Result<Vec<RingNode>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let mut nodes = Vec::<Node>::deserialize(deserializer)?;
+    let mut nodes = Vec::<RingNode>::deserialize(deserializer)?;
 
     for node in nodes.iter_mut() {
         node.hash = membership_hash(&node.addr);
@@ -227,6 +227,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
+    use std::collections::HashMap;
 
     macro_rules! assert_approx_eq {
         ($a:expr, $b:expr) => {{
@@ -242,18 +244,21 @@ mod tests {
 
     #[test]
     fn test_size_empty() {
-        let ring = Carp::new(vec![]);
+        let ring = Carp::new(vec![], 0);
         assert!(ring.is_empty());
         assert_eq!(ring.len(), 0);
     }
 
     #[test]
     fn test_correct_weights() {
-        let ring = Carp::new(vec![
-            ("0".to_string(), 0.4),
-            ("1".to_string(), 0.4),
-            ("2".to_string(), 0.2),
-        ]);
+        let ring = Carp::new(
+            vec![
+                ("0".to_string(), 0.4),
+                ("1".to_string(), 0.4),
+                ("2".to_string(), 0.2),
+            ],
+            14,
+        );
         assert_eq!(ring.nodes[0].addr, "2");
         assert_eq!(ring.nodes[1].addr, "0");
         assert_eq!(ring.nodes[2].addr, "1");
@@ -267,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_add_node() {
-        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)]);
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
         ring.add_node("2".to_string(), 0.25);
         assert_eq!(ring.len(), 3);
         // Check that rebalance works correctly.
@@ -284,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_remove_node() {
-        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)]);
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
         ring.remove_node("0");
         assert_eq!(ring.len(), 1);
         assert_eq!(ring.nodes[0].addr, "1");
@@ -293,8 +298,38 @@ mod tests {
     }
 
     #[test]
+    fn test_single_node_get() {
+        let ring = Carp::new(vec![("0".to_string(), 1.0)], 0);
+        assert_eq!(ring.get("foo"), "0");
+        for _ in 0..100 {
+            let target: String = rand::thread_rng()
+                .sample_iter::<char, _>(rand::distributions::Standard)
+                .take(50)
+                .collect();
+            assert_eq!(ring.get(&target), "0");
+        }
+    }
+
+    #[test]
+    fn test_even_load() {
+        let ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
+        let mut counts: HashMap<&str, u32> = HashMap::new();
+        for _ in 0..10000 {
+            let target: String = rand::thread_rng()
+                .sample_iter::<char, _>(rand::distributions::Standard)
+                .take(50)
+                .collect();
+            let res = ring.get(&target);
+            *counts.entry(res).or_insert(0) += 1;
+        }
+        assert!(counts.contains_key("0"));
+        assert!(counts.contains_key("1"));
+        assert!(counts["0"] > 3500);
+    }
+
+    #[test]
     fn test_serializing_carp() {
-        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)]);
+        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 0);
         let serialized = serde_json::to_string(&ring).unwrap();
         let deserialized: Carp = serde_json::from_str(&serialized).unwrap();
         assert_eq!(ring.nodes[0].addr, deserialized.nodes[0].addr);

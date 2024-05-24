@@ -8,9 +8,11 @@ use std::sync::Arc;
 
 use openraft::Config;
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use tokio::task;
 
 use crate::app::App;
+use crate::carp::Carp;
 use crate::network::api;
 use crate::network::management;
 use crate::network::Network;
@@ -112,6 +114,10 @@ where
     .await
     .unwrap();
 
+    // Create a consistent hashing ring that can be retrieved by the clients for client based
+    // routing.
+    let hash_ring = Arc::new(RwLock::new(Carp::new(vec![(http_addr.clone(), 1.0)], 0)));
+
     let app_state = Arc::new(App {
         id: node_id,
         api_addr: http_addr.clone(),
@@ -119,6 +125,7 @@ where
         raft,
         key_values: kvs,
         config,
+        hash_ring,
     });
 
     let echo_service = Arc::new(network::raft::Raft::new(app_state.clone()));

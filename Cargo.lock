@@ -573,6 +573,7 @@ dependencies = [
  "clap",
  "maplit",
  "openraft",
+ "rand",
  "reqwest",
  "rocksdb",
  "serde",

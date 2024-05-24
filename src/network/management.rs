@@ -10,6 +10,7 @@ use axum::Router;
 use openraft::raft::ClientWriteResponse;
 use openraft::RaftMetrics;
 
+use crate::carp::Carp;
 use crate::network::error::AppError;
 use crate::AppState;
 use crate::Node;
@@ -21,11 +22,29 @@ use crate::TypeConfig;
 /// Creates a new `axum::Router` instance with the configured routes for Cluster Management API.
 pub fn rest() -> Router<AppState> {
     Router::new()
+        .route("/update-hash-ring", post(update_hash_ring))
         .route("/add-learner", post(add_learner))
         .route("/change-membership", post(change_membership))
         .route("/init", post(init))
         .route("/metrics", get(metrics))
 }
+
+// --- Consistent Hashing API
+
+/// Update the consistent hashing ring stored on the server.
+/// Only configs with higher config_id numbers are accepted.
+async fn update_hash_ring(
+    State(state): State<AppState>,
+    Json(payload): Json<Carp>,
+) -> Result<(StatusCode, Json<()>), AppError> {
+    let mut ring_lock = state.hash_ring.write().await;
+    if payload.config_id >= ring_lock.config_id {
+        *ring_lock = payload;
+    }
+    Ok((StatusCode::OK, Json(())))
+}
+
+// --- Raft API
 
 /// Add a node as **Learner**.
 ///
