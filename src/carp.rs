@@ -2,19 +2,24 @@
 //!
 //! Follows implementation details outlined in this RFC:
 //! https://datatracker.ietf.org/doc/html/draft-vinod-carp-v1-03#section-3.1
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
 
 const CARP_PRIME: u32 = 0x62531965;
 
 /// A node in the hash ring.
 /// TODO: Currently ignores the fact that a node is a Raft cluster.
-#[derive(Debug, Clone, PartialEq)]
-struct Node {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Node {
     pub addr: String,
     /// A value between 0 and 1.
     pub relative_load: f32,
     /// Load factor multiplier. Calculated from relative load.
+    #[serde(skip)]
     pub load_factor: f32,
     /// The member proxy hash.
+    #[serde(skip)]
     pub hash: u32,
 }
 
@@ -32,51 +37,32 @@ impl Node {
 }
 
 /// A CARP hash ring.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Carp {
-    nodes: Vec<Node>,
+    /// CARP protocol version.
+    pub version: f32,
+    /// Configuration ID. Used to determine if a configuration has changed.
+    pub config_id: u32,
+    /// List time-to-live. Used to determine how long a list of members is valid.
+    pub list_ttl: u32,
+    #[serde(deserialize_with = "deserialize_nodes")]
+    pub nodes: Vec<Node>,
 }
 
 impl Carp {
-    /// Rebalances the ring by recalculating the load factors and relative loads.
-    fn rebalance(&mut self) {
-        if self.nodes.is_empty() {
-            return;
-        }
-        // 1. Recalculate the relative loads.
-        let total_load: f32 = self.nodes.iter().map(|node| node.relative_load).sum();
-        for node in self.nodes.iter_mut() {
-            node.relative_load /= total_load;
-        }
-
-        // 2. Recalculate the load factors.
-        let num_nodes = self.nodes.len() as f32;
-        self.nodes
-            .sort_by(|a, b| a.relative_load.partial_cmp(&b.relative_load).unwrap());
-        let mut last_load = (self.nodes[0].relative_load * num_nodes).powf(1.0 / num_nodes);
-        self.nodes[0].load_factor = last_load;
-        let mut running_prod = last_load;
-        let mut last_relative = self.nodes[0].relative_load;
-        for (i, node) in self.nodes.iter_mut().skip(1).enumerate() {
-            let mut x_k = ((num_nodes - ((i + 1) as f32)) * (node.relative_load - last_relative))
-                / running_prod;
-            x_k += last_load.powf(num_nodes - ((i + 1) as f32));
-            x_k = x_k.powf(1.0 / (num_nodes - ((i + 1) as f32)));
-            node.load_factor = x_k;
-
-            running_prod *= x_k;
-            last_relative = node.relative_load;
-            last_load = x_k;
-        }
-    }
     /// Creates a new hash ring from a vector of addresses and relative loads.
     pub fn new(nodes: Vec<(String, f32)>) -> Self {
         let nodes = nodes
             .into_iter()
             .map(|(addr, relative_load)| Node::new(addr, relative_load))
             .collect();
-        let mut ring = Self { nodes };
-        ring.rebalance();
+        let mut ring = Self {
+            nodes,
+            version: 1.0,
+            config_id: 0,
+            list_ttl: 10 * 60, // 10 minutes
+        };
+        rebalance(&mut ring.nodes);
         ring
     }
 
@@ -85,7 +71,8 @@ impl Carp {
     pub fn add_node(&mut self, addr: String, relative_load: f32) {
         let node = Node::new(addr, relative_load);
         self.nodes.push(node);
-        self.rebalance();
+        rebalance(&mut self.nodes);
+        self.config_id += 1;
     }
 
     /// Removes a node from the hash ring.
@@ -93,8 +80,9 @@ impl Carp {
     pub fn remove_node(&mut self, addr: &str) {
         self.nodes.retain(|node| node.addr != addr);
         if !self.nodes.is_empty() {
-            self.rebalance();
+            rebalance(&mut self.nodes);
         }
+        self.config_id += 1;
     }
 
     /// Returns `true` if the ring is empty.
@@ -193,6 +181,49 @@ fn combine_hashes(membership: u32, url: u32) -> u32 {
     combined.rotate_left(21)
 }
 
+/// Rebalances the ring by recalculating the load factors and relative loads.
+fn rebalance(nodes: &mut Vec<Node>) {
+    if nodes.is_empty() {
+        return;
+    }
+    // 1. Recalculate the relative loads.
+    let total_load: f32 = nodes.iter().map(|node| node.relative_load).sum();
+    for node in nodes.iter_mut() {
+        node.relative_load /= total_load;
+    }
+    // 2. Recalculate the load factors.
+    let num_nodes = nodes.len() as f32;
+    nodes.sort_by(|a, b| a.relative_load.partial_cmp(&b.relative_load).unwrap());
+    let mut last_load = (nodes[0].relative_load * num_nodes).powf(1.0 / num_nodes);
+    nodes[0].load_factor = last_load;
+    let mut running_prod = last_load;
+    let mut last_relative = nodes[0].relative_load;
+    for (i, node) in nodes.iter_mut().skip(1).enumerate() {
+        let mut x_k =
+            ((num_nodes - ((i + 1) as f32)) * (node.relative_load - last_relative)) / running_prod;
+        x_k += last_load.powf(num_nodes - ((i + 1) as f32));
+        x_k = x_k.powf(1.0 / (num_nodes - ((i + 1) as f32)));
+        node.load_factor = x_k;
+        running_prod *= x_k;
+        last_relative = node.relative_load;
+        last_load = x_k;
+    }
+}
+
+fn deserialize_nodes<'de, D>(deserializer: D) -> Result<Vec<Node>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let mut nodes = Vec::<Node>::deserialize(deserializer)?;
+
+    for node in nodes.iter_mut() {
+        node.hash = membership_hash(&node.addr);
+    }
+    rebalance(&mut nodes);
+
+    Ok(nodes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,5 +290,24 @@ mod tests {
         assert_eq!(ring.nodes[0].addr, "1");
         assert_approx_eq!(ring.nodes[0].relative_load, 1.0);
         assert_approx_eq!(ring.nodes[0].load_factor, 1.0);
+    }
+
+    #[test]
+    fn test_serializing_carp() {
+        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)]);
+        let serialized = serde_json::to_string(&ring).unwrap();
+        let deserialized: Carp = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(ring.nodes[0].addr, deserialized.nodes[0].addr);
+        assert_eq!(ring.nodes[1].addr, deserialized.nodes[1].addr);
+        assert_approx_eq!(
+            ring.nodes[0].relative_load,
+            deserialized.nodes[0].relative_load
+        );
+        assert_approx_eq!(
+            ring.nodes[1].relative_load,
+            deserialized.nodes[1].relative_load
+        );
+        assert_approx_eq!(ring.nodes[0].load_factor, deserialized.nodes[0].load_factor);
+        assert_approx_eq!(ring.nodes[1].load_factor, deserialized.nodes[1].load_factor);
     }
 }
