@@ -22,7 +22,7 @@ use crate::store::Response;
 
 pub mod app;
 pub mod carp;
-pub mod client;
+pub mod node;
 pub mod network;
 pub mod store;
 
