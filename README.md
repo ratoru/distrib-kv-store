@@ -14,6 +14,8 @@ sh tests/test-raft-cluster.sh
 
 You can also run `cargo test` to make sure everything works properly. This will test the CARP implementation and the Raft implementation.
 
+Run `cargo bench` to benchmark our CARP implementation.
+
 ### Folder Structure
 
 - `bin/main.rs` can be used to start a Raft node. This is used by `test-cluster.sh` for testing purposes.
