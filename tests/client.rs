@@ -86,8 +86,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a CARP ring with the initial leaders
     // TODO: this needs to be changed bc leaders change
     let initial_load = 1.0 / num_clusters as f32;
-    let mut carp_ring = Carp::new(
-        all_nodes.iter().map(|cluster| {
+    let carp_ring = Carp::new(
+        all_nodes.iter().map(|cluster: &Vec<(String, f64)>| {
             let (leader_addr, _) = &cluster[0];
             (leader_addr.clone(), initial_load)
         }).collect(),
@@ -99,11 +99,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Leader Node Address: {}, Load Factor: {}", node.addr, node.load_factor);
     }
 
-    write_to_responsible_node(&carp_ring, &node_map, "key", "value").await;
-    write_to_responsible_node(&carp_ring, &node_map, "hi", "test").await;
-    write_to_responsible_node(&carp_ring, &node_map, "hello", "testing").await;
+    let _ = write_to_responsible_node(&carp_ring, &node_map, "key", "value").await;
+    let _ = write_to_responsible_node(&carp_ring, &node_map, "hi", "test").await;
+    let _ = write_to_responsible_node(&carp_ring, &node_map, "hello", "testing").await;
 
-    read_from_responsible_node(&carp_ring, &node_map, "hello").await;
+    let _read_from_responsible_node = read_from_responsible_node(&carp_ring, &node_map, "hello").await;
 
     Ok(())
 }
