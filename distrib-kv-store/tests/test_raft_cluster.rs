@@ -4,7 +4,7 @@ use std::panic::PanicInfo;
 use std::thread;
 use std::time::Duration;
 
-use distrib_kv_store::node::RaftNode;
+use distrib_kv_store::raft_node::RaftNode;
 use distrib_kv_store::start_example_raft_node;
 use distrib_kv_store::store::Request;
 use distrib_kv_store::Node;

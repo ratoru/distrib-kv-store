@@ -30,6 +30,8 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 axum = "0.7.5"
 thiserror = "1.0.59"
+
+[dev-dependencies]
 maplit = "1.0.2"
 tempfile = { version = "3.10.1" }
 rand = "0.8.5"

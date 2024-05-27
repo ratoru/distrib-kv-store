@@ -13,6 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::carp::Carp;
 use crate::typ;
 use crate::Node;
 use crate::NodeId;
@@ -73,6 +74,15 @@ impl RaftNode {
     }
 
     // --- Cluster management API
+
+
+    pub async fn update_hash_ring(
+        &self,
+        req: Carp,
+    ) -> Result<typ::ClientWriteResponse, typ::RPCError<typ::ClientWriteError>> {
+        self.send_rpc_to_leader("cluster/update-hash-ring", Some(&req))
+            .await
+    }
 
     /// Initialize a cluster of only the node that receives this request.
     ///
