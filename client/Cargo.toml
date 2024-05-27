@@ -1,0 +1,24 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2021"
+description = "A client for a distributed key-value store."
+
+[[bin]]
+name = "admin"
+path = "src/bin/admin.rs"
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
+
+[dependencies]
+distrib-kv-store = { path = "../distrib-kv-store" }
+maplit = "1.0.2"
+tempfile = { version = "3.10.1" }
+rand = "0.8.5"
+toml = "0.5"
+tokio = { version = "1.37.0", features = ["full"] }
+serde = { version = "1.0.200", features = ["derive"] }
+futures = "0.3"
+

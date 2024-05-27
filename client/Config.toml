@@ -1,0 +1,3 @@
+# Config.toml
+num_clusters = 3
+nodes_per_cluster = 3
