@@ -2,6 +2,7 @@
 //!
 //! Follows implementation details outlined in this RFC:
 //! https://datatracker.ietf.org/doc/html/draft-vinod-carp-v1-03#section-3.1
+use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -47,20 +48,40 @@ pub struct Carp {
     pub list_ttl: u32,
     #[serde(deserialize_with = "deserialize_nodes")]
     pub nodes: Vec<RingNode>,
+    /// Optional followers for the CARP hash ring, maps leader to vector of followers which are represented by addresses.
+    /// If not provided initialized to empty HashMap.
+    pub followers_map: HashMap<String, Vec<String>>,
+    /// Proxy map that maps an original leader to a new proxy for that cluster.
+    pub proxy_map: HashMap<String, String>,
 }
 
 impl Carp {
     /// Creates a new hash ring from a vector of addresses and relative loads.
-    pub fn new(nodes: Vec<(String, f32)>, config_id: u32) -> Self {
-        let nodes = nodes
+    pub fn new(nodes: Vec<(String, f32)>, config_id: u32, followers: Option<Vec<Vec<String>>>) -> Self {
+        let nodes: Vec<RingNode> = nodes
             .into_iter()
             .map(|(addr, relative_load)| RingNode::new(addr, relative_load))
             .collect();
+
+        let followers_map: HashMap<String, Vec<String>> = if let Some(followers) = followers {
+            nodes.iter().enumerate().map(|(i, node)| {
+                (node.addr.clone(), followers[i].clone())
+            }).collect()
+        } else {
+            HashMap::new()
+        };
+        let proxy_map: HashMap<String, String> =  {
+            nodes.iter().enumerate().map(|(_i, node)| {
+                (node.addr.clone(), node.addr.clone())
+            }).collect()
+        };
         let mut ring = Self {
             nodes,
             version: 1.0,
             config_id,
             list_ttl: 10 * 60, // 10 minutes
+            followers_map,
+            proxy_map,
         };
         rebalance(&mut ring.nodes);
         ring
@@ -68,9 +89,20 @@ impl Carp {
 
     /// Adds a new node to the hash ring.
     /// Recalculates relative loads and load factors.
-    pub fn add_node(&mut self, addr: String, relative_load: f32) {
+    pub fn add_node(&mut self, addr: String, relative_load: f32, followers: Option<Vec<String>>) {
+        // Ensure that the CARP ring followers maintains consistency: i.e. either there is always
+        // followers for every node or there are no followers.
+        if self.followers_map.is_empty() && !self.nodes.is_empty() && followers.is_some() {
+            panic!("You can't put followers into this CARP ring as there are other nodes that don't have followers.");
+        } else if !self.followers_map.is_empty() && followers.is_none() {
+            panic!("You must provide followers for this new node, as the rest of the CARP ring nodes have followers.");
+        };
         let node = RingNode::new(addr, relative_load);
-        self.nodes.push(node);
+        self.nodes.push(node.clone());
+        self.proxy_map.insert(node.addr.clone(), node.addr.clone());
+        if followers.is_some() {
+            self.followers_map.insert(node.addr, followers.expect("expect followers to be some"));
+        };
         rebalance(&mut self.nodes);
         self.config_id += 1;
     }
@@ -79,10 +111,26 @@ impl Carp {
     /// Recalculates relative loads and load factors.
     pub fn remove_node(&mut self, addr: &str) {
         self.nodes.retain(|node| node.addr != addr);
+        if !self.followers_map.is_empty() {
+            self.followers_map.remove(addr);
+            self.proxy_map.remove(addr);
+        }
         if !self.nodes.is_empty() {
             rebalance(&mut self.nodes);
         }
         self.config_id += 1;
+    }
+
+    /// Sets a new proxy for a leader that is down. User still needs to track original leaders, but
+    /// CARP ring will return the proxy for subsequent calls to .get() instead of the leader.
+    pub fn set_new_proxy(&mut self, old_leader_addr: &str, new_leader_addr: &str) {
+        self.proxy_map.insert(old_leader_addr.to_string(), new_leader_addr.to_string());
+    }
+
+    /// Get the followers of a given original leader. User needs ot track original leaders 
+    /// to correctly call this method. Returns vector of addrs of followers for that original leader. 
+    pub fn get_followers(&self, original_leader_addr: &str) -> Option<&Vec<String>> {
+        self.followers_map.get(original_leader_addr)
     }
 
     /// Returns `true` if the ring is empty.
@@ -92,7 +140,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![], 0);
+    /// let mut ring = Carp::new(vec![], 0, None);
     ///
     /// assert!(ring.is_empty());
     /// ```
@@ -107,7 +155,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0, None);
     ///
     /// assert_eq!(ring.len(), 2);
     /// ```
@@ -126,7 +174,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0, None);
     ///
     /// assert_eq!(ring.get("foo"), "node-1");
     /// ```
@@ -145,7 +193,7 @@ impl Carp {
                 best_node = node;
             }
         }
-        best_node.addr.as_str()
+        self.proxy_map.get(&best_node.addr).expect("Proxy map did not have original leader queried.").as_str()
     }
 }
 
@@ -245,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_size_empty() {
-        let ring = Carp::new(vec![], 0);
+        let ring = Carp::new(vec![], 0, None);
         assert!(ring.is_empty());
         assert_eq!(ring.len(), 0);
     }
@@ -259,6 +307,7 @@ mod tests {
                 ("2".to_string(), 0.2),
             ],
             14,
+            None,
         );
         assert_eq!(ring.nodes[0].addr, "2");
         assert_eq!(ring.nodes[1].addr, "0");
@@ -273,8 +322,8 @@ mod tests {
 
     #[test]
     fn test_add_node() {
-        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
-        ring.add_node("2".to_string(), 0.25);
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0, None);
+        ring.add_node("2".to_string(), 0.25, None);
         assert_eq!(ring.len(), 3);
         // Check that rebalance works correctly.
         assert_eq!(ring.nodes[0].addr, "2");
@@ -290,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_remove_node() {
-        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0, None);
         ring.remove_node("0");
         assert_eq!(ring.len(), 1);
         assert_eq!(ring.nodes[0].addr, "1");
@@ -300,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_single_node_get() {
-        let ring = Carp::new(vec![("0".to_string(), 1.0)], 0);
+        let ring = Carp::new(vec![("0".to_string(), 1.0)], 0, None);
         assert_eq!(ring.get("foo"), "0");
         for _ in 0..100 {
             let target: String = rand::thread_rng()
@@ -313,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_even_load() {
-        let ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
+        let ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0, None);
         let mut counts: HashMap<&str, u32> = HashMap::new();
         for _ in 0..10000 {
             let target: String = rand::thread_rng()
@@ -332,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_serializing_carp() {
-        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 0);
+        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 0, None);
         let serialized = serde_json::to_string(&ring).unwrap();
         let deserialized: Carp = serde_json::from_str(&serialized).unwrap();
         assert_eq!(ring.nodes[0].addr, deserialized.nodes[0].addr);
@@ -348,4 +397,64 @@ mod tests {
         assert_approx_eq!(ring.nodes[0].load_factor, deserialized.nodes[0].load_factor);
         assert_approx_eq!(ring.nodes[1].load_factor, deserialized.nodes[1].load_factor);
     }
+
+    #[test]
+    fn test_new_with_followers_print_vals() {
+        let ring = Carp::new(
+            vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 
+            0, 
+            Some(vec![
+                vec!["2".to_string(), "3".to_string()], 
+                vec!["4".to_string(), "5".to_string()],
+            ]),
+        );
+        // Should be {"0": ["2", "3"], "1": ["4", "5"]}
+        println!("{:?}", ring.followers_map);
+        // Should be ["2", "3"]
+        assert_eq!(ring.get_followers("0").expect("not found"), &vec!["2", "3"]);
+        // Should be ["4", "5"]
+        assert_eq!(ring.get_followers("1").expect("not found"), &vec!["4", "5"]);
+        // Should be {"0": "0", "1": "1"}
+        println!("{:?}", ring.proxy_map);
+    }
+
+    #[test]
+    fn test_proxy_leader() {
+        let mut ring = Carp::new(
+            vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 
+            0, 
+            Some(vec![
+                vec!["2".to_string(), "3".to_string()], 
+                vec!["4".to_string(), "5".to_string()],
+            ]),
+        );
+    
+        let target: String = rand::thread_rng()
+            .sample_iter::<char, _>(rand::distributions::Standard)
+            .take(50)
+            .collect();
+        
+        let res = {
+            let res_temp = ring.get(&target);
+            res_temp.to_string()
+        };
+        println!("{}", res);
+    
+        let opposite = match res.as_str() {
+            "0" => "1",
+            "1" => "0",
+            _ => panic!("res must be either '0' or '1'"),
+        };
+    
+        // Mutable borrow after the immutable borrow is out of scope
+        ring.set_new_proxy(&res, opposite);
+
+        let res_two = {
+            let res_temp = ring.get(&target);
+            res_temp.to_string()
+        };
+        println!("{}", res_two);
+
+        assert_eq!(opposite, res_two);
+    }    
 }
