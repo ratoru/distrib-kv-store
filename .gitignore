@@ -1,7 +1,6 @@
 vendor
 .idea
 *-db
-*/*.log
 *.log
-*/target
+target/*
 .DS_Store

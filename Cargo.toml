@@ -9,6 +9,15 @@ description = "A distributed key-value store."
 name = "raft-kv"
 path = "src/bin/main.rs"
 
+[[bin]]
+name = "admin"
+path = "src/bin/admin.rs"
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
+
+
 [dependencies]
 openraft = { version = "0.9.8", features = ["serde", "storage-v2"] }
 tokio = { version = "1.37.0", features = ["full"] }
@@ -30,8 +39,8 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 axum = "0.7.5"
 thiserror = "1.0.59"
-
-[dev-dependencies]
 maplit = "1.0.2"
 tempfile = { version = "3.10.1" }
 rand = "0.8.5"
+toml = "0.5"
+futures = "0.3"
