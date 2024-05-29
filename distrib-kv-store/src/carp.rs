@@ -129,7 +129,7 @@ impl Carp {
 
     /// Get the followers of a given original leader. User needs ot track original leaders 
     /// to correctly call this method. Returns vector of addrs of followers for that original leader. 
-    pub fn get_followers(&mut self, original_leader_addr: &str) -> Option<&Vec<String>> {
+    pub fn get_followers(&self, original_leader_addr: &str) -> Option<&Vec<String>> {
         self.followers_map.get(original_leader_addr)
     }
 
@@ -140,7 +140,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![], 0);
+    /// let mut ring = Carp::new(vec![], 0, None);
     ///
     /// assert!(ring.is_empty());
     /// ```
@@ -155,7 +155,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0, None);
     ///
     /// assert_eq!(ring.len(), 2);
     /// ```
@@ -174,7 +174,7 @@ impl Carp {
     /// ```
     /// use distrib_kv_store::carp::Carp;
     ///
-    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0);
+    /// let mut ring = Carp::new(vec![("node-1".to_string(), 0.5), ("node-2".to_string(), 0.5)], 0, None);
     ///
     /// assert_eq!(ring.get("foo"), "node-1");
     /// ```
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_size_empty() {
-        let ring = Carp::new(vec![], 0);
+        let ring = Carp::new(vec![], 0, None);
         assert!(ring.is_empty());
         assert_eq!(ring.len(), 0);
     }
@@ -307,6 +307,7 @@ mod tests {
                 ("2".to_string(), 0.2),
             ],
             14,
+            None,
         );
         assert_eq!(ring.nodes[0].addr, "2");
         assert_eq!(ring.nodes[1].addr, "0");
@@ -321,8 +322,8 @@ mod tests {
 
     #[test]
     fn test_add_node() {
-        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
-        ring.add_node("2".to_string(), 0.25);
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0, None);
+        ring.add_node("2".to_string(), 0.25, None);
         assert_eq!(ring.len(), 3);
         // Check that rebalance works correctly.
         assert_eq!(ring.nodes[0].addr, "2");
@@ -338,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_remove_node() {
-        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
+        let mut ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0, None);
         ring.remove_node("0");
         assert_eq!(ring.len(), 1);
         assert_eq!(ring.nodes[0].addr, "1");
@@ -348,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_single_node_get() {
-        let ring = Carp::new(vec![("0".to_string(), 1.0)], 0);
+        let ring = Carp::new(vec![("0".to_string(), 1.0)], 0, None);
         assert_eq!(ring.get("foo"), "0");
         for _ in 0..100 {
             let target: String = rand::thread_rng()
@@ -361,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_even_load() {
-        let ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0);
+        let ring = Carp::new(vec![("0".to_string(), 0.5), ("1".to_string(), 0.5)], 0, None);
         let mut counts: HashMap<&str, u32> = HashMap::new();
         for _ in 0..10000 {
             let target: String = rand::thread_rng()
@@ -380,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_serializing_carp() {
-        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 0);
+        let ring = Carp::new(vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 0, None);
         let serialized = serde_json::to_string(&ring).unwrap();
         let deserialized: Carp = serde_json::from_str(&serialized).unwrap();
         assert_eq!(ring.nodes[0].addr, deserialized.nodes[0].addr);
@@ -396,4 +397,64 @@ mod tests {
         assert_approx_eq!(ring.nodes[0].load_factor, deserialized.nodes[0].load_factor);
         assert_approx_eq!(ring.nodes[1].load_factor, deserialized.nodes[1].load_factor);
     }
+
+    #[test]
+    fn test_new_with_followers_print_vals() {
+        let ring = Carp::new(
+            vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 
+            0, 
+            Some(vec![
+                vec!["2".to_string(), "3".to_string()], 
+                vec!["4".to_string(), "5".to_string()],
+            ]),
+        );
+        // Should be {"0": ["2", "3"], "1": ["4", "5"]}
+        println!("{:?}", ring.followers_map);
+        // Should be ["2", "3"]
+        assert_eq!(ring.get_followers("0").expect("not found"), &vec!["2", "3"]);
+        // Should be ["4", "5"]
+        assert_eq!(ring.get_followers("1").expect("not found"), &vec!["4", "5"]);
+        // Should be {"0": "0", "1": "1"}
+        println!("{:?}", ring.proxy_map);
+    }
+
+    #[test]
+    fn test_proxy_leader() {
+        let mut ring = Carp::new(
+            vec![("0".to_string(), 0.8), ("1".to_string(), 0.2)], 
+            0, 
+            Some(vec![
+                vec!["2".to_string(), "3".to_string()], 
+                vec!["4".to_string(), "5".to_string()],
+            ]),
+        );
+    
+        let target: String = rand::thread_rng()
+            .sample_iter::<char, _>(rand::distributions::Standard)
+            .take(50)
+            .collect();
+        
+        let res = {
+            let res_temp = ring.get(&target);
+            res_temp.to_string()
+        };
+        println!("{}", res);
+    
+        let opposite = match res.as_str() {
+            "0" => "1",
+            "1" => "0",
+            _ => panic!("res must be either '0' or '1'"),
+        };
+    
+        // Mutable borrow after the immutable borrow is out of scope
+        ring.set_new_proxy(&res, opposite);
+
+        let res_two = {
+            let res_temp = ring.get(&target);
+            res_temp.to_string()
+        };
+        println!("{}", res_two);
+
+        assert_eq!(opposite, res_two);
+    }    
 }
