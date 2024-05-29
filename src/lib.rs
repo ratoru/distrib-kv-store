@@ -9,6 +9,7 @@ use std::sync::Arc;
 use openraft::Config;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
+use tokio::sync::watch;
 use tokio::task;
 
 use crate::app::App;
@@ -82,6 +83,7 @@ pub async fn start_example_raft_node<P>(
     dir: P,
     http_addr: String,
     rpc_addr: String,
+    shutdown_signal: watch::Receiver<()>,
 ) -> std::io::Result<()>
 where
     P: AsRef<Path>,
@@ -133,8 +135,14 @@ where
     let server = toy_rpc::Server::builder().register(echo_service).build();
 
     let rpc_listener = TcpListener::bind(rpc_addr).await.unwrap();
-    let handle = task::spawn(async move {
-        server.accept_websocket(rpc_listener).await.unwrap();
+    let _ = task::spawn({
+        let mut shutdown_signal_clone = shutdown_signal.clone();
+        async move {
+            tokio::select! {
+                _ = server.accept_websocket(rpc_listener) => {},
+                _ = shutdown_signal_clone.changed() => {},
+            }
+        }
     });
 
     // Create an application that will store all the instances created above, this will
@@ -145,7 +153,15 @@ where
         .nest("/cluster", management::rest())
         .with_state(app_state);
 
-    axum::serve(app_listener, app).await.unwrap();
-    _ = handle.await;
+    axum::serve(app_listener, app)
+        .with_graceful_shutdown({
+            let mut shutdown_signal_clone = shutdown_signal.clone();
+            async move {
+                shutdown_signal_clone.changed().await.ok();
+            }
+        })
+        .await
+        .unwrap();
+
     Ok(())
 }

@@ -13,6 +13,8 @@ use toml;
 use serde::Deserialize;
 use serde_json;
 
+use tokio::sync::watch;
+
 #[derive(Deserialize)]
 struct Config {
     num_clusters: usize,
@@ -32,6 +34,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Nodes per cluster: {}", nodes_per_cluster);
 
     let mut handles = Vec::new();
+
+    let (shutdown_tx, _) = watch::channel(());
 
     fn get_addr(node_id: u64, cluster_id: u64) -> String {
         format!("127.0.0.1:{}", 31000 + cluster_id * 100 + node_id)
@@ -58,9 +62,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let addr = get_addr(node_id, cluster_id);            
             let rpc_addr = get_rpc_addr(node_id, cluster_id);
             let addr_clone = addr.clone();
+            let shutdown_rx = shutdown_tx.subscribe();
 
             let handle = tokio::spawn(async move {
-                let _ = start_example_raft_node(node_id, &temp_dir, addr_clone, rpc_addr).await;
+                let _ = start_example_raft_node(node_id, &temp_dir, addr_clone, rpc_addr, shutdown_rx.clone()).await;
             });
             handles.push(handle);
             cluster_nodes.push(addr);
@@ -102,8 +107,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Application is running. Press Ctrl+C to exit.");
     tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl_c");
    
+    // Signal shutdown to all nodes
+    let _ = shutdown_tx.send(());
+
+    // Wait for all nodes to shutdown
     for handle in handles {
-        handle.abort();
+        let _ = handle.await;
     }
 
     Ok(())
