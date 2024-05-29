@@ -2,5 +2,6 @@ vendor
 .idea
 *-db
 *.log
-target/*
+/target
 .DS_Store
+all_nodes.json

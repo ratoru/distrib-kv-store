@@ -73,9 +73,23 @@ impl RaftNode {
             .await
     }
 
+    /// Get the current hash ring of the Raft cluster.
+    ///
+    /// This method retrieves the hash ring, which is used to determine the cluster responsible for a given key.
+    /// The hash ring is a data structure that helps in distributing the load evenly across the Raft clusters.
+    pub async fn get_hash_ring(
+        &self
+    ) -> Result<Carp, typ::RPCError> {
+        self.do_send_rpc_to_leader("api/get_hash_ring", None::<&()>)
+            .await
+    }
+
     // --- Cluster management API
 
-
+    /// Update the hash ring of the Raft cluster.
+    ///
+    /// This method updates the hash ring, which is used to determine the cluster responsible for a given key.
+    /// The hash ring is a data structure that helps in distributing the load evenly across the Raft clusters.
     pub async fn update_hash_ring(
         &self,
         req: Carp,

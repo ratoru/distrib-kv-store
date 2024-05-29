@@ -11,6 +11,7 @@ use std::error::Error;
 
 use toml;
 use serde::Deserialize;
+use serde_json;
 
 #[derive(Deserialize)]
 struct Config {
@@ -62,7 +63,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let _ = start_example_raft_node(node_id, &temp_dir, addr_clone, rpc_addr).await;
             });
             handles.push(handle);
-            cluster_nodes.push((addr, 1.0));
+            cluster_nodes.push(addr);
         }
         all_nodes.push(cluster_nodes);
     }
@@ -71,11 +72,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::time::sleep(Duration::from_millis(1_000)).await;
 
     // Create a CARP ring with the initial leaders
-    // TODO: this needs to be changed bc leaders change
     let initial_load = 1.0 / num_clusters as f32;
     let carp_ring = Carp::new(
         all_nodes.iter().map(|cluster| {
-            let (leader_addr, _) = &cluster[0];
+            let leader_addr = &cluster[0];
             (leader_addr.clone(), initial_load)
         }).collect(),
         0,
@@ -83,18 +83,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Initialize each cluster
     for (cluster_id, nodes) in all_nodes.iter().enumerate() {
-        let leader = RaftNode::new(1, nodes[0].0.clone());
-        println!("=== init cluster {} with leader at {}", cluster_id + 1, nodes[0].0);
+        let leader = RaftNode::new(1, nodes[0].clone());
+        println!("=== init cluster {} with leader at {}", cluster_id + 1, nodes[0]);
         leader.init().await?;
         for (node_id, node) in nodes.iter().enumerate().skip(1) {
             println!("=== add node {} to cluster {}", node_id + 1, cluster_id + 1);
-            leader.add_learner((node_id as u64 + 1, node.0.clone(), get_rpc_addr(node_id as u64 + 1, cluster_id as u64 + 1))).await?;
+            leader.add_learner((node_id as u64 + 1, node.clone(), get_rpc_addr(node_id as u64 + 1, cluster_id as u64 + 1))).await?;
         }
         println!("=== change-membership for cluster {}", cluster_id + 1);
         leader.change_membership(&nodes.iter().enumerate().map(|(id, _)| id as u64 + 1).collect()).await?;
         let _ = leader.update_hash_ring(carp_ring.clone()).await;
-        node_map.insert(nodes[0].0.clone(), leader);
+        node_map.insert(nodes[0].clone(), leader);
     }
+
+    let serialized_all_nodes = serde_json::to_string(&all_nodes)?;
+    fs::write("all_nodes.json", serialized_all_nodes)?;
 
     println!("Application is running. Press Ctrl+C to exit.");
     tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl_c");

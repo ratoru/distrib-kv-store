@@ -2,6 +2,7 @@ use axum::extract::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::post;
+use axum::routing::get;
 use axum::Router;
 use openraft::error::CheckIsLeaderError;
 use openraft::error::Infallible;
@@ -27,7 +28,7 @@ pub fn rest() -> Router<AppState> {
         .route("/write", post(write))
         .route("/read", post(read))
         .route("/consistent_read", post(consistent_read))
-        .route("/get_hash_ring", post(get_hash_ring))
+        .route("/get_hash_ring", get(get_hash_ring))
 }
 
 /**
