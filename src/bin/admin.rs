@@ -84,6 +84,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             (leader_addr.clone(), initial_load)
         }).collect(),
         0,
+        None,
     );
 
     // Initialize each cluster
