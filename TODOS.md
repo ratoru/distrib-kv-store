@@ -4,8 +4,9 @@
 
 - [x] Implemented CARP protocol and added it to server.
 - [ ] Modify CARP to also store addresses of followers (not just leader).
-- [ ] Make client request and use CARP protocol.
-- [ ] Make a script and/or function to set up sharded clusters. The script must also send out the CARP config (which is just a local `Carp` object).
+- [x] Make client request and use CARP protocol.
+- [x] Make a script and/or function to set up sharded clusters. The script must also send out the CARP config (which is just a local `Carp` object).
+- [ ] Demonstrate client script adding/removing nodes and updating CARP config.
 
 ## Benchmarking
 

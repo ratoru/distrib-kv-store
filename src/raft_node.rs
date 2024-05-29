@@ -13,6 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::carp::Carp;
 use crate::typ;
 use crate::Node;
 use crate::NodeId;
@@ -21,7 +22,7 @@ use crate::Request;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Empty {}
 
-pub struct ExampleClient {
+pub struct RaftNode {
     /// The leader node to send request to.
     ///
     /// All traffic should be sent to the leader in a cluster.
@@ -30,7 +31,7 @@ pub struct ExampleClient {
     pub inner: Client,
 }
 
-impl ExampleClient {
+impl RaftNode {
     /// Create a client with a leader node id and a node manager to get node address by node id.
     pub fn new(leader_id: NodeId, leader_addr: String) -> Self {
         Self {
@@ -72,7 +73,30 @@ impl ExampleClient {
             .await
     }
 
+    /// Get the current hash ring of the Raft cluster.
+    ///
+    /// This method retrieves the hash ring, which is used to determine the cluster responsible for a given key.
+    /// The hash ring is a data structure that helps in distributing the load evenly across the Raft clusters.
+    pub async fn get_hash_ring(
+        &self
+    ) -> Result<Carp, typ::RPCError> {
+        self.do_send_rpc_to_leader("api/get_hash_ring", None::<&()>)
+            .await
+    }
+
     // --- Cluster management API
+
+    /// Update the hash ring of the Raft cluster.
+    ///
+    /// This method updates the hash ring, which is used to determine the cluster responsible for a given key.
+    /// The hash ring is a data structure that helps in distributing the load evenly across the Raft clusters.
+    pub async fn update_hash_ring(
+        &self,
+        req: Carp,
+    ) -> Result<typ::ClientWriteResponse, typ::RPCError<typ::ClientWriteError>> {
+        self.send_rpc_to_leader("cluster/update-hash-ring", Some(&req))
+            .await
+    }
 
     /// Initialize a cluster of only the node that receives this request.
     ///

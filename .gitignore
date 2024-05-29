@@ -1,5 +1,7 @@
-/target
 vendor
 .idea
 *-db
-/*.log
+*.log
+/target
+.DS_Store
+all_nodes.json
