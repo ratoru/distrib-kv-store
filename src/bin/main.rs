@@ -1,6 +1,7 @@
 use clap::Parser;
 use distrib_kv_store::start_example_raft_node;
 use tracing_subscriber::EnvFilter;
+use tokio::sync::watch;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -29,11 +30,14 @@ async fn main() -> std::io::Result<()> {
     // Parse the parameters passed by arguments.
     let options = Opt::parse();
 
+    let (_, shutdown_rx) = watch::channel(());
+
     start_example_raft_node(
         options.id,
         format!("{}-db", options.rpc_addr),
         options.http_addr,
         options.rpc_addr,
+        shutdown_rx
     )
     .await
 }

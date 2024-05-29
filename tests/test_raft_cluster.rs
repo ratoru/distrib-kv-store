@@ -11,6 +11,7 @@ use distrib_kv_store::Node;
 use maplit::btreemap;
 use maplit::btreeset;
 use tokio::runtime::Handle;
+use tokio::sync::watch;
 use tracing_subscriber::EnvFilter;
 
 pub fn log_panic(panic: &PanicInfo) {
@@ -82,35 +83,45 @@ async fn test_cluster() -> Result<(), Box<dyn std::error::Error>> {
     let d2 = tempfile::TempDir::new()?;
     let d3 = tempfile::TempDir::new()?;
 
+    let (shutdown_tx1, _) = watch::channel(());
+    let (shutdown_tx2, _) = watch::channel(());
+    let (shutdown_tx3, _) = watch::channel(());
+
     let handle = Handle::current();
     let handle_clone = handle.clone();
     let _h1 = thread::spawn(move || {
+        let shutdown_rx = &shutdown_tx1.subscribe().clone();
         let x = handle_clone.block_on(start_example_raft_node(
             1,
             d1.path(),
             get_addr(1),
             get_rpc_addr(1),
+            shutdown_rx.clone()
         ));
         println!("x: {:?}", x);
     });
 
     let handle_clone = handle.clone();
     let _h2 = thread::spawn(move || {
+        let shutdown_rx = &shutdown_tx2.subscribe().clone();
         let x = handle_clone.block_on(start_example_raft_node(
             2,
             d2.path(),
             get_addr(2),
             get_rpc_addr(2),
+            shutdown_rx.clone()
         ));
         println!("x: {:?}", x);
     });
 
     let _h3 = thread::spawn(move || {
+        let shutdown_rx = &shutdown_tx3.subscribe().clone();
         let x = handle.block_on(start_example_raft_node(
             3,
             d3.path(),
             get_addr(3),
             get_rpc_addr(3),
+            shutdown_rx.clone()
         ));
         println!("x: {:?}", x);
     });
