@@ -5,7 +5,7 @@ use distrib_kv_store::kvclient::KVClient;
 
 fn benchmark_read(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let client = rt.block_on(KVClient::new()).unwrap();
+    let client = rt.block_on(KVClient::new("all_nodes.json")).unwrap();
     let mut rng = rand::thread_rng();
 
     c.bench_function("read", |b| {
@@ -21,7 +21,7 @@ fn benchmark_read(c: &mut Criterion) {
 
 fn benchmark_write(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let client = rt.block_on(KVClient::new()).unwrap();
+    let client = rt.block_on(KVClient::new("all_nodes.json")).unwrap();
     let mut rng = rand::thread_rng();
 
     c.bench_function("write", |b| {
@@ -40,7 +40,7 @@ fn benchmark_write(c: &mut Criterion) {
 
 fn benchmark_mixed_operations(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let client = rt.block_on(KVClient::new()).unwrap();
+    let client = rt.block_on(KVClient::new("all_nodes.json")).unwrap();
     let mut rng = rand::thread_rng();
 
     c.bench_function("mixed_read_write", |b| {

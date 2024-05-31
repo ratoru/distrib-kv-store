@@ -3,7 +3,7 @@ use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let client = KVClient::new().await?;
+    let client = KVClient::new("all_nodes.json").await?;
 
     client.write("key", "value").await?;
     client.write("hi", "test").await?;

@@ -12,8 +12,8 @@ pub struct KVClient {
 }
 
 impl KVClient {
-    pub async fn new() -> Result<Self, Box<dyn Error>> {
-        let (carp_ring, node_map) = Self::setup().await;
+    pub async fn new(nodes_config_path: &str) -> Result<Self, Box<dyn Error>> {
+        let (carp_ring, node_map) = Self::setup(nodes_config_path).await;
         Ok(KVClient {
             carp_ring,
             node_map: Mutex::new(node_map),
@@ -45,8 +45,8 @@ impl KVClient {
         }
     }
 
-    async fn setup() -> (Carp, HashMap<String, RaftNode>) {
-        let data = std::fs::read_to_string("all_nodes.json").unwrap();
+    async fn setup(nodes_config_path: &str) -> (Carp, HashMap<String, RaftNode>) {
+        let data = std::fs::read_to_string(nodes_config_path).unwrap();
         let all_nodes: Vec<Vec<String>> = serde_json::from_str(&data).unwrap();
     
         let mut node_map = HashMap::new();
