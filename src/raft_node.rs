@@ -167,14 +167,18 @@ impl RaftNode {
         };
 
         let resp = if let Some(r) = req {
-            println!(
-                ">>> client send request to {}: {}",
-                url,
-                serde_json::to_string_pretty(&r).unwrap()
-            );
+            if cfg!(debug_assertions) {
+                println!(
+                    ">>> client send request to {}: {}",
+                    url,
+                    serde_json::to_string_pretty(&r).unwrap()
+                );
+            }
             self.inner.post(url.clone()).json(r)
         } else {
-            println!(">>> client send request to {}", url,);
+            if cfg!(debug_assertions) {
+                println!(">>> client send request to {}", url,);
+            }
             self.inner.get(url.clone())
         }
         .send()
@@ -204,11 +208,13 @@ impl RaftNode {
             )))
         };
 
-        println!(
-            "<<< client recv reply from {}: {}",
-            url,
-            serde_json::to_string_pretty(&res).unwrap()
-        );
+        if cfg!(debug_assertions) {
+            println!(
+                "<<< client recv reply from {}: {}",
+                url,
+                serde_json::to_string_pretty(&res).unwrap()
+            );
+        }
 
         res
     }

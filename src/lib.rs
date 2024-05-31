@@ -26,6 +26,7 @@ pub mod carp;
 pub mod raft_node;
 pub mod network;
 pub mod store;
+pub mod kvclient;
 
 pub type NodeId = u64;
 

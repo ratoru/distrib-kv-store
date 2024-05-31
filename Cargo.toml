@@ -52,3 +52,7 @@ sha2 = "0.10.8"
 [[bench]]
 name = "carp_benchmark"
 harness = false
+
+[[bench]]
+name = "operations_benchmark"
+harness = false
