@@ -56,3 +56,7 @@ harness = false
 [[bench]]
 name = "operations_benchmark"
 harness = false
+
+[[bench]]
+name = "concurrent_benchmark"
+harness = false
