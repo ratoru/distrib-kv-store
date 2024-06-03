@@ -63,5 +63,5 @@ fn benchmark_mixed_operations(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, benchmark_read, benchmark_write, benchmark_mixed_operations);
+criterion_group!(benches, benchmark_write, benchmark_read, benchmark_mixed_operations);
 criterion_main!(benches);
