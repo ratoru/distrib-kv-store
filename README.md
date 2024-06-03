@@ -9,7 +9,12 @@ We use CARP to create a consistent hash ring for data sharding. Each node on the
 To see the a single Raft cluster at work, run the following:
 
 ```bash
-sh tests/test-raft-cluster.sh
+sh scripts/test-single-cluster.sh
+```
+
+To see multiple Raft clusters at work, run the following:
+```bash
+sh scripts/test-multiple-clusters.sh
 ```
 
 You can also run `cargo test` to make sure everything works properly. This will test the CARP implementation and the Raft implementation.

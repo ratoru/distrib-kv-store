@@ -30,14 +30,14 @@ async fn main() -> std::io::Result<()> {
     // Parse the parameters passed by arguments.
     let options = Opt::parse();
 
-    let (_, shutdown_rx) = watch::channel(());
+    let (_shutdown_tx, shutdown_rx) = watch::channel(());
 
     start_example_raft_node(
         options.id,
         format!("{}-db", options.rpc_addr),
         options.http_addr,
         options.rpc_addr,
-        shutdown_rx
+        shutdown_rx.clone()
     )
     .await
 }
