@@ -14,6 +14,7 @@ pub fn regular_benchmark(c: &mut Criterion) {
                     .map(|i| (i.to_string(), 1.0 / size as f32))
                     .collect(),
                 0,
+                None, 
             )
         })
         .collect();
