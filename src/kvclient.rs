@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 use rand::prelude::IteratorRandom;
 
 pub struct KVClient {
-    carp_ring: Carp,
+    pub carp_ring: Carp,
     node_map: Mutex<HashMap<String, RaftNode>>,
 }
 
@@ -20,14 +20,42 @@ impl KVClient {
         })
     }
 
-    pub async fn write(&self, key: &str, value: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn write(& mut self, key: &str, value: &str) -> Result<(), Box<dyn Error>> {
         let node_map = self.node_map.lock().await;
         let responsible_node_addr = self.carp_ring.get(key);
         if let Some(responsible_node) = node_map.get(responsible_node_addr) {
-            responsible_node.write(&Request::Set {
+            let res = responsible_node.write(&Request::Set {
                 key: key.to_string(),
                 value: value.to_string(),
-            }).await?;
+            }).await;
+            match res {
+                Err(_e) => {
+                    let mut did_write = false;
+                    if let Some(followers) = self.carp_ring.get_followers(responsible_node_addr) {
+                        for follower_address in followers {
+                            if let Some(follower_node) = node_map.get(follower_address) {
+                                let res = follower_node.write(&Request::Set {
+                                    key: key.to_string(),
+                                    value: value.to_string(),
+                                }).await;
+        
+                                if res.is_ok() {
+                                    self.carp_ring.clone().set_new_proxy(responsible_node_addr, follower_address);
+                                    did_write = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    let _ = if !did_write {
+                        Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "RaftNode not found")))
+                    } else {
+                        Ok(())
+                    };
+                }
+                Ok(_r) => {
+                }
+            }
             Ok(())
         } else {
             Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "RaftNode not found")))

@@ -3,7 +3,7 @@ use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let client = KVClient::new("all_nodes.json").await?;
+    let mut client = KVClient::new("all_nodes.json").await?;
 
     client.write("key", "value").await?;
     client.write("hi", "test").await?;
@@ -13,6 +13,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Ok(response) => println!("Value retrieved: {}", response),
         Err(e) => println!("Error reading value: {}", e),
     }
+
+    println!("{:?}", client.carp_ring.proxy_map);
 
     Ok(())
 }

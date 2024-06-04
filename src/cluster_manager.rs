@@ -18,7 +18,7 @@ use serde_json;
 
 pub struct ClusterManager {
     shutdown_channels: Vec<Sender<()>>,
-    handles: Vec<JoinHandle<()>>,
+    pub handles: Vec<JoinHandle<()>>,
 }
 
 #[derive(Deserialize)]
@@ -91,7 +91,7 @@ impl ClusterManager {
                 (leader_addr.clone(), initial_load)
             }).collect(),
             0,
-            None
+            Some(all_nodes.clone())
         );
 
         // Initialize each cluster
