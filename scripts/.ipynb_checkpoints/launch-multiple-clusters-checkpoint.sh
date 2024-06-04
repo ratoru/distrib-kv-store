@@ -116,6 +116,9 @@ setup_clusters() {
         sleep 1
         change_membership ${first_port} "${member_ids}"
         sleep 1
+        rpc ${first_port}/cluster/update-hash-ring "{\"version\":1.0,\"config_id\":0,\"list_ttl\":600,\"nodes\":[{\"addr\":\"127.0.0.1:31101\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31201\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31301\",\"relative_load\":0.33333334}]}"
+        sleep 1
+
         echo "Cluster ${c} started with nodes ${member_ids}"
     done
 }
@@ -133,27 +136,9 @@ fi
 # Setup 3 clusters, each with 3 nodes
 setup_clusters
 
-rpc 31001/api/write '{"Set":{"key":"foo","value":"bar"}}'
-rpc 31001/api/read  '"foo"'
-rpc 31002/api/read  '"foo"'
-rpc 31003/api/read  '"foo"'
+trap 'echo "Killing all nodes..."; kill_all' INT
 
-rpc 31101/api/write '{"Set":{"key":"foo","value":"bar"}}'
-rpc 31101/api/read  '"foo"'
-rpc 31102/api/read  '"foo"'
-rpc 31103/api/read  '"foo"'
-
-rpc 31201/api/write '{"Set":{"key":"foo","value":"bar"}}'
-rpc 31201/api/read  '"foo"'
-rpc 31202/api/read  '"foo"'
-rpc 31203/api/read  '"foo"'
-
-echo "Killing all nodes in 3s..."
-sleep 1
-echo "Killing all nodes in 2s..."
-sleep 1
-echo "Killing all nodes in 1s..."
-sleep 1
-kill_all
-
-rm -r 127.0.0.1:*-db
+while true
+do
+    sleep 1
+done
