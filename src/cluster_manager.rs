@@ -18,7 +18,7 @@ use serde_json;
 
 pub struct ClusterManager {
     shutdown_channels: Vec<Sender<()>>,
-    handles: Vec<JoinHandle<()>>,
+    pub handles: Vec<JoinHandle<()>>,
 }
 
 #[derive(Deserialize)]
