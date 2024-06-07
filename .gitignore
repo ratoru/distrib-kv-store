@@ -5,3 +5,4 @@ vendor
 /target
 .DS_Store
 all_nodes.json
+data

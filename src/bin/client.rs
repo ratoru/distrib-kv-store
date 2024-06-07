@@ -14,5 +14,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => println!("Error reading value: {}", e),
     }
 
+    match client.consistent_read("hello").await {
+        Ok(response) => println!("Value retrieved: {}", response),
+        Err(e) => println!("Error reading value: {}", e),
+    }
+
+
     Ok(())
 }

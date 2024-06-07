@@ -655,6 +655,7 @@ dependencies = [
  "criterion",
  "futures",
  "maplit",
+ "once_cell",
  "openraft",
  "rand",
  "reqwest",
