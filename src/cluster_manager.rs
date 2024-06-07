@@ -43,11 +43,11 @@ impl ClusterManager {
         let mut shutdown_channels = Vec::new();
 
         fn get_addr(node_id: u64, cluster_id: u64) -> String {
-            format!("127.0.0.1:{}", 31000 + cluster_id * 100 + node_id)
+            format!("127.0.0.1:{}", 31000 + cluster_id * 10 + node_id)
         }
         
         fn get_rpc_addr(node_id: u64, cluster_id: u64) -> String {
-            format!("127.0.0.1:{}", 32000 + cluster_id * 100 + node_id)
+            format!("127.0.0.1:{}", 32000 + cluster_id * 10 + node_id)
         }
 
         let mut all_nodes = Vec::new();

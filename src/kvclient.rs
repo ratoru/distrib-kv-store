@@ -45,6 +45,17 @@ impl KVClient {
         }
     }
 
+    pub async fn consistent_read(&self, key: &str) -> Result<String, Box<dyn Error>> {
+        let node_map = self.node_map.lock().await;
+        let responsible_node_addr = self.carp_ring.get(key);
+        if let Some(responsible_node) = node_map.get(responsible_node_addr) {
+            let response = responsible_node.consistent_read(&key.to_string()).await?;
+            Ok(response)
+        } else {
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "RaftNode not found")))
+        }
+    }
+
     async fn setup(nodes_config_path: &str) -> (Carp, HashMap<String, RaftNode>) {
         let data = std::fs::read_to_string(nodes_config_path).unwrap();
         let all_nodes: Vec<Vec<String>> = serde_json::from_str(&data).unwrap();
