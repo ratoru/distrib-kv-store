@@ -120,7 +120,7 @@ where
 
     // Create a consistent hashing ring that can be retrieved by the clients for client based
     // routing.
-    let hash_ring = Arc::new(RwLock::new(Carp::new(vec![(http_addr.clone(), 1.0)], 0, None)));
+    let hash_ring = Arc::new(RwLock::new(Carp::new(vec![(http_addr.clone(), 1.0)], 0)));
 
     let app_state = Arc::new(App {
         id: node_id,

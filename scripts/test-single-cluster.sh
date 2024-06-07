@@ -22,7 +22,7 @@ rpc() {
     local uri=$1
     local body="$2"
 
-    echo '---'" rpc(:$uri, $body)"
+    echo '---'" http(:$uri, $body)"
 
     {
         if [ ".$body" = "." ]; then
