@@ -81,8 +81,8 @@ setup_clusters() {
 
         for (( n=1; n<=nodes_per_cluster; n++ ))
         do
-            local http_port=$((base_http_port + c * 100 + n))
-            local rpc_port=$((base_rpc_port + c * 100 + n))
+            local http_port=$((base_http_port + c * 10 + n))
+            local rpc_port=$((base_rpc_port + c * 10 + n))
             local log_file="n${n}.log"
 
             start_node ${n} ${http_port} ${rpc_port} ${log_file}
@@ -103,8 +103,8 @@ setup_clusters() {
 
         for (( n=2; n<=nodes_per_cluster; n++ ))
         do
-            local http_port=$((base_http_port + c * 100 + n))
-            local rpc_port=$((base_rpc_port + c * 100 + n))
+            local http_port=$((base_http_port + c * 10 + n))
+            local rpc_port=$((base_rpc_port + c * 10 + n))
 
             sleep 1
             rpc ${first_port}/cluster/add-learner "[${n}, \"127.0.0.1:${http_port}\", \"127.0.0.1:${rpc_port}\"]"
@@ -116,7 +116,7 @@ setup_clusters() {
         sleep 1
         change_membership ${first_port} "${member_ids}"
         sleep 1
-        rpc ${first_port}/cluster/update-hash-ring "{\"version\":1.0,\"config_id\":0,\"list_ttl\":600,\"nodes\":[{\"addr\":\"127.0.0.1:31101\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31201\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31301\",\"relative_load\":0.33333334}]}"
+        rpc ${first_port}/cluster/update-hash-ring "{\"version\":1.0,\"config_id\":0,\"list_ttl\":600,\"nodes\":[{\"addr\":\"127.0.0.1:31011\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31021\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31031\",\"relative_load\":0.33333334}]}"
         sleep 1
 
         echo "Cluster ${c} started with nodes ${member_ids}"
