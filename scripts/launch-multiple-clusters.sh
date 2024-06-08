@@ -2,7 +2,7 @@
 
 set -o errexit
 
-cargo build
+cargo build --release
 
 kill_all() {
     SERVICE='raft-kv'
@@ -97,9 +97,11 @@ setup_clusters() {
             fi
         done
 
-        sleep 2
+        echo ""
+
+        sleep 1
         rpc ${first_port}/cluster/init '{}'
-        sleep 2
+        sleep 1
 
         for (( n=2; n<=nodes_per_cluster; n++ ))
         do
@@ -108,18 +110,17 @@ setup_clusters() {
 
             sleep 1
             rpc ${first_port}/cluster/add-learner "[${n}, \"127.0.0.1:${http_port}\", \"127.0.0.1:${rpc_port}\"]"
-            sleep 1
         done
 
         member_ids+=']'
 
-        sleep 1
         change_membership ${first_port} "${member_ids}"
-        sleep 1
         rpc ${first_port}/cluster/update-hash-ring "{\"version\":1.0,\"config_id\":0,\"list_ttl\":600,\"nodes\":[{\"addr\":\"127.0.0.1:31011\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31021\",\"relative_load\":0.33333334},{\"addr\":\"127.0.0.1:31031\",\"relative_load\":0.33333334}]}"
-        sleep 1
 
         echo "Cluster ${c} started with nodes ${member_ids}"
+        echo ""
+        echo "======================================"
+        echo ""
     done
 }
 
@@ -133,8 +134,9 @@ then
     rm -r 127.0.0.1:*-db || echo "no db to clean"
 fi
 
-# Setup 3 clusters, each with 3 nodes
 setup_clusters
+
+echo "Application is running. Press Ctrl+C to exit."
 
 trap 'echo "Killing all nodes..."; kill_all' INT
 
